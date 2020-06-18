@@ -54,10 +54,10 @@ class sparkJob(object):
     # alt = [re.sub('\W+', '', word) for word in keywords]
     # trans = {word: word for word in keywords}
     # trans.update({word1: word2 for word1, word2 in zip(alt, keywords)})
-    keywords_dict = {key: 0 for key in keywords}
+    # keywords_dict = {key: 0 for key in keywords}
 
     print("----keywords---")
-    print(keywords_dict)
+    # print(keywords_dict)
     # print(trans)
 
     def process_record(self, record):
@@ -73,7 +73,7 @@ class sparkJob(object):
         # TODO: need decode for 'text'?
         text = html_to_text(page).lower()
         for word in self.keywords:
-            if word in text and self.keywords_dict[word] == 0:
+            if word in text:
                 yield (date, word), 1
 
     def iterate_records(self, archive_iterator):
