@@ -1,0 +1,31 @@
+After create tables, run the athena queries to filter out unrelated information and retrieve file paths for potentially interested crawling records:
+
+
+This sample query limit the data to only platforms that we are interested in (news, blog, facebook, twitter, intagram, and youtube) and eliminate unwanted data:
+SELECT Day(fetch_time), url, warc_filename, warc_record_offset, warc_record_length
+FROM "ccindex"."ccindex"
+WHERE crawl = 'CC-MAIN-2020-10'
+  AND subset = 'warc'
+  AND content_languages = 'eng'
+  AND (position('facebook' in url_host_name) != 0
+      Or position('twitter' in url_host_name) != 0
+      Or position('instagram' in url_host_name) != 0
+      Or position('youtube' in url_host_name) != 0
+      Or position('news' in url) != 0
+      Or position('blog' in url) != 0)
+(Can replace 'CC-MAIN-2020-10' with other path for data from other month)
+
+This sample query looks for additional records for a specific brand that is interested, and the results will be union into the result of previous query:
+SELECT Day(fetch_time), url, warc_filename, warc_record_offset, warc_record_length
+FROM "ccindex"."ccindex"
+WHERE crawl = 'CC-MAIN-2020-10'
+  AND subset = 'warc'
+  AND content_languages = 'eng'
+  And position('starbucks' in url) != 0
+  AND (position('facebook' in url_host_name) = 0
+      AND position('twitter' in url_host_name) = 0
+      AND position('instagram' in url_host_name) = 0
+      AND position('youtube' in url_host_name) = 0
+      AND position('news' in url) = 0
+      AND position('blog' in url) = 0)
+(Can replace 'starbucks' with other brand name.)
