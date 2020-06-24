@@ -15,6 +15,8 @@
 Instead of tv ad or traditional advertising board, more and more companies rely on internet for its marketing, and they want to measure their brand awareness across the internet, especially while comparing with other competitors or evaluating a specific campaign. However, the information are spread across different platforms and it could be difficult to have an big picture of a brand's exposure throughout the internet. To achieve that, this data pipeline ingests crawling information from the whole internet, ranks and compares brand popularity of the top U.S. Fast Food chains with the normalized count that they have been mentioned on internet over time. This method can also be generalized to all industries and even election campaigns to evaluate popularity and branding efficiency.
 
 <!---### Demo -->
+### Slide
+[Demo Slide](https://docs.google.com/presentation/d/1L8fE6510gnzmPTUl_UJgQ661iwNzURejbmQs9ou1jAo/edit?usp=sharing)
 
 ### Pipeline
 ![Pipeline](https://github.com/zhiqingrao/Common_crawl_insight/blob/master/readme_pipeline.png)
