@@ -5,6 +5,7 @@ from tempfile import TemporaryFile
 import re
 import boto3
 import nltk
+import argparse
 from warcio.archiveiterator import ArchiveIterator
 from io import BytesIO
 from bs4 import BeautifulSoup
@@ -78,9 +79,25 @@ def match_schema(rows):
     for row in rows:
         yield row[0][0], row[0][1], row[0][2], row[1]
 
+def parse_arguments(pj_name):
+    """ Returns the parsed arguments from the command line """
+    description = "running " + pj_name
+    num_input_partitions = 400
+
+    arg_parser = argparse.ArgumentParser(prog=pj_name,
+                                         description=description,
+                                         conflict_handler='resolve')
+    arg_parser.add_argument("input", help="Athena query results in s3")
+    arg_parser.add_argument("output", help="Output path in s3")
+    arg_parser.add_argument("--num_input_partitions", type=int,
+                            default=num_input_partitions,
+                            help="Number of input splits/partitions")
+    args = arg_parser.parse_args()
+    return args
 
 def run_job():
     pj_name = "with_query"
+    args = parse_arguments(pj_name)
 
     # Create Spark Session
     spark = SparkSession \
@@ -98,8 +115,7 @@ def run_job():
 
     # Read csv from athena output, take rows
     sqldf = spark.read.format("csv").option("header", True).option(
-        "inferSchema", True).load(
-        "s3://common-crawl-insight/sql_res/Unsaved/2020/06/19/28225d51-fa38-4947-8abd-45b22a7dd3b1.csv")
+        "inferSchema", True).load(args.input)
     print("-----get csv--------")
 
     warc_recs = sqldf.select("warc_filename", "warc_record_offset",
@@ -114,7 +130,7 @@ def run_job():
     print("-----word_counts_all-------", output.collect())
 
     df = spark.createDataFrame(output, schema=output_schema)
-    df.repartition(1).write.csv("s3a://common-crawl-insight/output/out_feb.csv")
+    df.repartition(1).write.csv(args.output)
     print("---------------finish write.csv---------------")
 
 
