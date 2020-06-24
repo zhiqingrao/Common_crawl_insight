@@ -26,7 +26,7 @@ The pipeline first retrieves the Index files that contains path to WARC files fo
 1. Set up S3 bucket
 2. Set up Athena and create tables with instruction [here](https://commoncrawl.org/2018/03/index-to-warc-files-and-urls-in-columnar-format/). Run Athena queries presented in the /Athena/filter.txt, store the output files into your S3 bucket. 
 3. Set up AWS EMR clusters with package installation in /bootstrap/install_python_modules.sh 
-4. . Run the spark job with `spark-submit --master yarn --deploy-mode client --packages com.amazonaws:aws-java-sdk:1.7.4,org.apache.hadoop:hadoop-aws:2.7.7 --output_path {output_path} requestcount.py` {output_path} should be the path to you S3 bucket for output
+4. . Run the spark job with `spark-submit --master yarn --deploy-mode client --packages com.amazonaws:aws-java-sdk:1.7.4,org.apache.hadoop:hadoop-aws:2.7.7 {input_path} requestcount.py {output_path}` where `{input_path}` and `{output_path}` should be replaced with S3 object paths for Athena query results and the output.
 
 
 ## Repo structure
