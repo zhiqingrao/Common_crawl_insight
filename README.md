@@ -17,9 +17,8 @@ Instead of tv ad or traditional advertising board, more and more companies rely 
 <!---### Demo -->
 
 ### Pipeline
-```
 ![Pipeline](https://github.com/zhiqingrao/Common_crawl_insight/blob/master/readme_pipeline.png)
-```
+
 The pipeline first retrieves the Index files that contains path to WARC files for each crawling records from S3, and filters to gain the exact file path, offset, and length for each potentially related records using AWS Athena querying on url keywords for each crawling records. After shuffling the query results based on file path, spark ingests the actual WARC files that contains the crawling metadata and HTML response, processes and normalizes the data for each brands over different platforms over time, and saved the result into csv files in s3, which would be further used for visualization in Tableau.
 
  
