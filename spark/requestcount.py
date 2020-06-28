@@ -1,6 +1,7 @@
 from pyspark import SparkConf, SparkContext
-from pyspark.sql import SparkSession, functions as F
+from pyspark.sql import SparkSession, Window, functions as F
 from pyspark.sql.types import StructType, StructField, StringType, LongType
+from pyspark.sql.functions import sum
 from tempfile import TemporaryFile
 import re
 import boto3
@@ -50,13 +51,14 @@ def fetch_process_warc_counts(rows):
     count = 0
     s3client = boto3.client('s3')
     for row in rows:
-        if count % 10 == 1:
+        if count % 10000 == 1:
             warc_path = row['warc_filename']
             offset = int(row['warc_record_offset'])
             length = int(row['warc_record_length'])
             rangereq = 'bytes={}-{}'.format(offset, (offset+length-1))
             response = s3client.get_object(Bucket='commoncrawl', Key=warc_path, Range=rangereq)
             record_stream = BytesIO(response["Body"].read())
+
             for record in ArchiveIterator(record_stream):
                 if record.rec_type != 'response':
                     continue
@@ -83,11 +85,16 @@ def parse_arguments(pj_name):
     """ Returns the parsed arguments from the command line """
     description = "running " + pj_name
     num_input_partitions = 400
+    input_crawl = "CC-MAIN-2020-10"
 
     arg_parser = argparse.ArgumentParser(prog=pj_name,
                                          description=description,
                                          conflict_handler='resolve')
-    arg_parser.add_argument("input", help="Athena query results in s3")
+    arg_parser.add_argument("--input_crawl", type=str, default=input_crawl, help="month of crawl to select")
+    arg_parser.add_argument("--read_input", type=bool, default=True,
+                            help="if true, read in sql result from input file")
+    arg_parser.add_argument("--input", type=str,
+                            help="path to sql result as input file")
     arg_parser.add_argument("output", help="Output path in s3")
     arg_parser.add_argument("--num_input_partitions", type=int,
                             default=num_input_partitions,
@@ -111,28 +118,44 @@ def run_job():
         StructField("day", StringType(), True),
         StructField("val", LongType(), True)
     ])
+    warc_recs = None
 
+    if not args.read_input:
+        df = spark.read.load('s3://commoncrawl/cc-index/table/cc-main/warc/')
+        df.createOrReplaceTempView('ccindex')
+        print("-----get csv--------", args.input_crawl)
+        sqldf = spark.sql(
+            "SELECT url, warc_filename, warc_record_offset, warc_record_length FROM "
+            "ccindex WHERE crawl = '{}' AND subset = 'warc' AND (position('facebook' "
+            "in url_host_name) != 0 Or position('twitter' in url_host_name) != 0 Or "
+            "position('instagram' in url_host_name) != 0  Or position('youtube' in "
+            "url_host_name) != 0 Or position('news' in url) != 0 "
+            "Or position('blog' in url) != 0)".format(str(args.input_crawl))) \
+            .orderBy("warc_filename")
+        sqldf.cache()
+        sqldf.repartition(1).write.option("header","true").csv(
+            "s3a://common-crawl-insight/intermediate_sql/sql_2020_10.csv")
+        warc_recs = sqldf.rdd
+    else:
+        # input: "s3a://common-crawl-insight/intermediate_sql/sql_2020_10.csv"
+        sqldf = spark.read.format("csv").option("header", True).option(
+                "inferSchema", True).load(args.input)
+        warc_recs = sqldf.select("url", "warc_filename", "warc_record_offset",
+                                 "warc_record_length").repartition(args.num_input_partitions).rdd
 
-    # Read csv from athena output, take rows
-    sqldf = spark.read.format("csv").option("header", True).option(
-        "inferSchema", True).load(args.input)
-    print("-----get csv--------")
-
-    warc_recs = sqldf.select("warc_filename", "warc_record_offset",
-                             "warc_record_length").orderBy("warc_filename").rdd
-    print("-----sql--------", warc_recs.take(5))
-
-    # mapPartition gets a list of words and 1's.  Filter removes all words that don't start with capital.  reduceByKey combines all a's and gets word count.  sortBy sorts by largest count to smallest.
+    # mapPartition gets a list of (brandname, platform, date) and 1's.
+    # reduceByKey combines all a's and gets word count.
     word_counts = warc_recs.mapPartitions(fetch_process_warc_counts)
     output = word_counts.reduceByKey(lambda a, b: a + b)\
                             .mapPartitions(match_schema)
     output.cache()
-    print("-----word_counts_all-------", output.collect())
-
     df = spark.createDataFrame(output, schema=output_schema)
-    df.repartition(1).write.csv(args.output)
-    print("---------------finish write.csv---------------")
 
+    # normalize each data point respect to date
+    res = df.withColumn("val_pct", 100*df.val/sum("val").over(Window.partitionBy("day")))
+    res = res.select(res.brand, res.domain, res.day, res.val, res.val_pct).rdd
+    print("-----word_counts_all-------", res.collect())
+    res.repartition(1).write.option("header","true").csv(args.output)
 
     spark.stop()
 
