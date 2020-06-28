@@ -21,14 +21,13 @@ Instead of tv ad or traditional advertising board, more and more companies rely 
 ### Pipeline
 ![Pipeline](https://github.com/zhiqingrao/Common_crawl_insight/blob/master/readme_pipeline.png)
 
-The pipeline first retrieves the Index files that contains path to WARC files for each crawling records from S3, and filters to gain the exact file path, offset, and length for each potentially related records using AWS Athena querying on url keywords for each crawling records. After shuffling the query results based on file path, spark ingests the actual WARC files that contains the crawling metadata and HTML response, processes and normalizes the data for each brands over different platforms over time, and saved the result into csv files in s3, which would be further used for visualization in Tableau.
+The pipeline first retrieves the Index files that contains path to WARC files for each crawling records from S3, and filters to gain the exact file path, offset, and length for each potentially related records using spark sql querying on url keywords for each crawling records. After shuffling the query results based on file path, spark ingests the actual WARC files that contains the crawling metadata and HTML response, processes and normalizes the data for each brands over different platforms over time, and saved the result into csv files in s3, which would be further used for visualization in Tableau.
 
  
 ## Run Instruction
 1. Set up S3 bucket
-2. Set up Athena and create tables with instruction [here](https://commoncrawl.org/2018/03/index-to-warc-files-and-urls-in-columnar-format/). Run Athena queries presented in the /Athena/filter.txt, store the output files into your S3 bucket. 
-3. Set up AWS EMR clusters with package installation in /bootstrap/install_python_modules.sh 
-4. . Run the spark job with `spark-submit --master yarn --deploy-mode client --packages com.amazonaws:aws-java-sdk:1.7.4,org.apache.hadoop:hadoop-aws:2.7.7 {input_path} requestcount.py {output_path}` where `{input_path}` and `{output_path}` should be replaced with S3 object paths for Athena query results and the output.
+2. Set up AWS EMR clusters with package installation in /bootstrap/install_python_modules.sh or setup spark and deploy it to clusters
+4. Run the spark job with `spark-submit --master yarn --deploy-mode client --packages com.amazonaws:aws-java-sdk:1.7.4,org.apache.hadoop:hadoop-aws:2.7.7 --read_input {False} --input_crawl {crawl_session} requestcount.py {output_path}`. `{crawl_session}` is the partition for crawl index for a specific month (eg:"CC-MAIN-2020-10"), and `{output_path}` should be replaced with S3 object paths for Athena query results and the output. Can also change the read_input flag to true to read a csv file as sql query results that will locate to the WARC records.
 
 
 ## Repo structure
