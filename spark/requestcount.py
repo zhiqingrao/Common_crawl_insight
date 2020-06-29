@@ -51,7 +51,7 @@ def fetch_process_warc_counts(rows):
     count = 0
     s3client = boto3.client('s3')
     for row in rows:
-        if count % 10000 == 1:
+        if count % 10 == 1:
             warc_path = row['warc_filename']
             offset = int(row['warc_record_offset'])
             length = int(row['warc_record_length'])
@@ -91,7 +91,7 @@ def parse_arguments(pj_name):
                                          description=description,
                                          conflict_handler='resolve')
     arg_parser.add_argument("--input_crawl", type=str, default=input_crawl, help="month of crawl to select")
-    arg_parser.add_argument("--read_input", type=bool, default=True,
+    arg_parser.add_argument("--read_input", type=str, default="False",
                             help="if true, read in sql result from input file")
     arg_parser.add_argument("--input", type=str,
                             help="path to sql result as input file")
@@ -103,7 +103,7 @@ def parse_arguments(pj_name):
     return args
 
 def run_job():
-    pj_name = "with_query"
+    pj_name = "brand_on_internet"
     args = parse_arguments(pj_name)
 
     # Create Spark Session
@@ -120,7 +120,8 @@ def run_job():
     ])
     warc_recs = None
 
-    if not args.read_input:
+    if args.read_input == "False":
+        print("-----run sql query--------")
         df = spark.read.load('s3://commoncrawl/cc-index/table/cc-main/warc/')
         df.createOrReplaceTempView('ccindex')
         print("-----get csv--------", args.input_crawl)
@@ -133,16 +134,19 @@ def run_job():
             "Or position('blog' in url) != 0)".format(str(args.input_crawl))) \
             .orderBy("warc_filename")
         sqldf.cache()
-        sqldf.repartition(1).write.option("header","true").csv(
-            "s3a://common-crawl-insight/intermediate_sql/sql_2020_10.csv")
+        sqldf.repartition(1).write.option("header","true").parquet(
+            "s3a://common-crawl-insight/intermediate_sql/sql_{}/".format(args.input_crawl))
         warc_recs = sqldf.rdd
+        print("-----save parquet--------")
     else:
-        # input: "s3a://common-crawl-insight/intermediate_sql/sql_2020_10.csv"
-        sqldf = spark.read.format("csv").option("header", True).option(
-                "inferSchema", True).load(args.input)
-        warc_recs = sqldf.select("url", "warc_filename", "warc_record_offset",
+        # input: "s3a://common-crawl-insight/intermediate_sql/sql_CC-MAIN-2020-10/"
+        # sqldf = spark.read.format("parquet").option("header", True).option(
+        #         "inferSchema", True).load(args.input)
+        sqldf = spark.read.load(args.input)
+        warc_recs = sqldf.select("warc_filename", "warc_record_offset",
                                  "warc_record_length").repartition(args.num_input_partitions).rdd
 
+    print("-----get parquet--------", warc_recs.take(5))
     # mapPartition gets a list of (brandname, platform, date) and 1's.
     # reduceByKey combines all a's and gets word count.
     word_counts = warc_recs.mapPartitions(fetch_process_warc_counts)
